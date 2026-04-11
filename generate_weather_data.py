@@ -9,9 +9,9 @@ from sqlalchemy import MetaData, URL
 
 connectionURL = URL.create(
     "postgresql+psycopg2",
-    username = "blue01",
-    password = "Rogerho1", #getpass.getpass("Password: "),
-    host = 'db-weather.clykwqsa0zia.us-east-2.rds.amazonaws.com',
+    username = "REDACTED",
+    password = "REDACTED", #getpass.getpass("Password: "),
+    host = 'REDACTED.REDACTED.us-east-2.rds.amazonaws.com',
     database = 'postgres',
     port = '5432'
 )
