@@ -1,4 +1,4 @@
-import sqlalchemy, requests, random, urllib, json, time, datetime
+import sqlalchemy, requests, random, urllib, json, time, datetime, boto3, re
 from sqlalchemy import create_engine, Table, Column, Integer, Float, DateTime, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.automap import automap_base
@@ -9,9 +9,9 @@ from sqlalchemy import MetaData, URL
 
 connectionURL = URL.create(
     "postgresql+psycopg2",
-    username = "REDACTED",
-    password = "REDACTED", #getpass.getpass("Password: "),
-    host = "REDACTED",
+    username = "blue01",
+    password = "Rogerho1", #getpass.getpass("Password: "),
+    host = 'db-weather.clykwqsa0zia.us-east-2.rds.amazonaws.com',
     database = 'postgres',
     port = '5432'
 )
@@ -62,6 +62,7 @@ def create_error_table(tableName):
     
   return Error_Log
 
+
 """# Send Request To Server"""
 
 def send_request(request):
@@ -72,6 +73,11 @@ def send_request(request):
 
   response = urllib.request.urlopen(forecastHourlyAPI)
   data = json.load(response)
+
+  keyName = str(re.split("[/,]", request)[-1]) + "_" + str(re.split("[/,]", request)[-2]) # gather lat/long from request
+  
+  store_bucket("weather-api-response", keyName, json.dumps(data)) # store response in bucket
+  
   startTime = data['properties']['periods'][1]['startTime'] # time of weather observation
   temp = data['properties']['periods'][1]['temperature'] # temp of weather observation
   probabilityRain = data['properties']['periods'][1]['probabilityOfPrecipitation']['value'] # grab probability of rain
@@ -116,6 +122,19 @@ def get_table(TableType): # use this function to either return the current table
     Base.metadata.create_all(engine) # create the tables in the SQL server by checking all tables associated with the Base class
     return newTable
 
+def store_bucket(bucketName, dataName, data):
+  s3 = boto3.resource('s3') # call resource
+  currentTime = datetime.datetime.now()
+  keyObj = f"{currentTime.year}_{currentTime.month}_{currentTime.day}__{currentTime.hour}-{currentTime.minute}/{dataName}.json" # store objects in folder
+
+  try:
+    bucket = s3.Bucket(bucketName)
+    response = bucket.put_object(Key = keyObj, Body = data) # doc https://docs.aws.amazon.com/boto3/latest/reference/services/s3/client/put_object.html
+    print(f"{response}")
+
+  except Exception as e:
+    print(e)
+
 def send_weather_request(event, context):
   #while True: # continuously run
 
@@ -138,6 +157,7 @@ def send_weather_request(event, context):
       session.add(weatherPoint) # add the instance to the database
       session.commit()
       print(f"{weatherPoint} added successfully")
+
   except Exception as e:
       tableName = get_table("Error Log") # grab current table in database or make it
       errorLog = tableName(date = datetime.datetime.now(),
