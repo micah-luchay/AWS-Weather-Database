@@ -4,6 +4,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import MetaData, URL
+from zoneinfo import ZoneInfo
 
 """# Connect to Database"""
 
@@ -11,9 +12,9 @@ connectionURL = URL.create(
     "postgresql+psycopg2",
     username = "REDACTED",
     password = "REDACTED", #getpass.getpass("Password: "),
-    host = 'REDACTED.REDACTED.us-east-2.rds.amazonaws.com',
+    host = 'REDACTED',
     database = 'postgres',
-    port = '5432'
+    port = 'REDACTED'
 )
 
 print(connectionURL)
@@ -89,21 +90,20 @@ def send_request(request):
 """# Grab Table Name"""
 
 def get_table(TableType): # use this function to either return the current table or create a new table at midnight
-  current_time = datetime.datetime.now()
   metadata = MetaData() # create MetaData object, which is a collection of table objects and schema constucts
   metadata.reflect(bind=engine) # load the schema, including table names of sql server, specify the connection
 
   tables = metadata.tables.keys()  # grab the table names from metadata
-  current_time = datetime.datetime.now()
+  current_time = datetime.datetime.now(ZoneInfo("America/New_York")) # use local time zone for Eastern Coast
 
   match TableType: # determine what table to create
     case "Weather Table":
-      currentTable = f"WeatherData_{current_time.year}_{current_time.month}_{current_time.day}"
+      currentTable = f"weatherdata_{current_time.year}_{current_time.month}_{current_time.day}"
     case "Error Log":
-      currentTable = f"ErrorLog_{current_time.year}_{current_time.month}_{current_time.day}"
+      currentTable = f"errorlog_{current_time.year}_{current_time.month}_{current_time.day}"
 
   firstWord = currentTable.split("_")[0] # grab first word from table name
-  tableDict = {"WeatherData": create_weather_table, "ErrorLog": create_error_table} # create dispatch table to determine what table to create
+  tableDict = {"weatherdata": create_weather_table, "errorlog": create_error_table} # create dispatch table to determine what table to create
 
   if currentTable in tables: # table name found in database, between 00:00 and 23:59
     BaseDB = automap_base() # reflect or read the existing database
@@ -124,7 +124,7 @@ def get_table(TableType): # use this function to either return the current table
 
 def store_bucket(bucketName, dataName, data):
   s3 = boto3.resource('s3') # call resource
-  currentTime = datetime.datetime.now()
+  currentTime = datetime.datetime.now(ZoneInfo("America/New_York")) # use local time zone for Eastern Coast
   keyObj = f"{currentTime.year}_{currentTime.month}_{currentTime.day}__{currentTime.hour}-{currentTime.minute}/{dataName}.json" # store objects in folder
 
   try:
@@ -160,7 +160,7 @@ def send_weather_request(event, context):
 
   except Exception as e:
       tableName = get_table("Error Log") # grab current table in database or make it
-      errorLog = tableName(date = datetime.datetime.now(),
+      errorLog = tableName(date = datetime.datetime.now(ZoneInfo("America/New_York")), # use local time zone for Eastern Coast
                           url = request,
                           error = str(e))
       session.add(errorLog)
